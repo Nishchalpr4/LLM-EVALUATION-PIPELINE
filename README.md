@@ -1,4 +1,4 @@
-# RAG Evaluation Pipeline
+# LLM Evaluation Pipeline
 
 A lightweight, interpretable evaluation pipeline for **Retrieval-Augmented Generation (RAG)** systems. This project evaluates an AI-generated answer against retrieved context to measure **relevance, hallucination, completeness, estimated cost, and latency**.
 
