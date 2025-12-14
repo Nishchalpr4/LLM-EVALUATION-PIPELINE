@@ -49,7 +49,7 @@ Measures total evaluation runtime in **milliseconds**.
 .
 ├── conversation.json   # Conversation history (user + AI messages)
 ├── context.json        # Vector database retrieval output
-├── evaluate.py         # Main evaluation script
+├── main.py         # Main evaluation script
 └── README.md           # Project documentation
 ```
 
