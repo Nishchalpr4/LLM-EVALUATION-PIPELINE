@@ -1,51 +1,76 @@
-RAG Evaluation Pipeline
+# RAG Evaluation Pipeline
 
-This project implements a lightweight evaluation pipeline for Retrieval-Augmented Generation (RAG) systems. It analyzes an AI response against retrieved context to measure relevance, hallucination, completeness, cost, and latency.
+A lightweight, interpretable evaluation pipeline for **Retrieval-Augmented Generation (RAG)** systems. This project evaluates an AI-generated answer against retrieved context to measure **relevance, hallucination, completeness, estimated cost, and latency**.
 
-Overview
+---
 
-The pipeline takes:
+## 📌 Overview
 
-A conversation log (conversation.json)
+The pipeline analyzes how well an AI response is grounded in retrieved context from a vector database. It is designed for **baseline or lightweight evaluation**, prioritizing transparency and simplicity over heavy semantic modeling.
 
-Retrieved context from a vector database (context.json)
+### Inputs
 
-It produces quantitative metrics to assess the quality of the AI-generated answer.
+* **Conversation log** (`conversation.json`)
+* **Retrieved context** from a vector database (`context.json`)
 
-Metrics Implemented
+### Output
 
-Relevance Score
-Measures lexical overlap between the AI answer and the most relevant context chunk.
+* Quantitative metrics assessing the quality and efficiency of the AI-generated response.
 
-Hallucination Score
-Identifies unsupported claims in the AI answer based on context grounding.
+---
 
-Completeness Score
-Estimates how much of the user question is addressed in the AI response.
+## 📊 Metrics Implemented
 
-Estimated Cost
-Approximates evaluation cost using a token-based heuristic.
+### 1. Relevance Score
 
-Latency
-Measures total evaluation runtime in milliseconds.
+Measures lexical overlap between the AI-generated answer and the most relevant retrieved context chunk.
 
-File Structure
+### 2. Hallucination Score
+
+Identifies unsupported or ungrounded claims in the AI answer by comparing it against the retrieved context.
+
+### 3. Completeness Score
+
+Estimates how thoroughly the AI response addresses the user’s question.
+
+### 4. Estimated Cost
+
+Approximates evaluation cost using a token-count–based heuristic.
+
+### 5. Latency
+
+Measures total evaluation runtime in **milliseconds**.
+
+---
+
+## 📁 File Structure
+
+```
 .
 ├── conversation.json   # Conversation history (user + AI messages)
 ├── context.json        # Vector database retrieval output
 ├── evaluate.py         # Main evaluation script
-└── README.md
+└── README.md           # Project documentation
+```
 
-Input Format
-conversation.json
+---
+
+## 🧾 Input Format
+
+### `conversation.json`
+
+```json
 {
   "conversation_turns": [
     { "role": "User", "message": "Your question here" },
     { "role": "AI/Chatbot", "message": "AI response here" }
   ]
 }
+```
 
-context.json
+### `context.json`
+
+```json
 {
   "data": {
     "vector_data": [
@@ -54,46 +79,59 @@ context.json
     ]
   }
 }
+```
 
-How to Run
+---
+
+## ▶️ How to Run
+
+Ensure Python 3 is installed, then execute:
+
+```bash
 python evaluate.py
+```
 
-Output
+---
 
-The script prints:
+## 📤 Output
 
-AI answer
+The script prints the following to the console:
 
-Relevance score
+* AI-generated answer
+* Relevance score
+* Unsupported claims (if any)
+* Hallucination score
+* Completeness score
+* Estimated evaluation cost
+* Evaluation latency (ms)
 
-Unsupported claims (if any)
+---
 
-Hallucination score
+## ⚠️ Limitations
 
-Completeness score
+* Relies on **lexical overlap**, not semantic similarity
+* Does not handle paraphrasing or synonymy
+* May underestimate relevance for well-written but rephrased answers
+* Best suited for **baseline evaluation**, debugging, or early-stage RAG systems
 
-Estimated evaluation cost
+---
 
-Evaluation latency
+## 🚀 Future Improvements
 
-Limitations
+* Replace word overlap with **embedding-based similarity**
+* Add **sentence-level semantic grounding**
+* Introduce configurable **thresholds and metric weights**
+* Add **unit tests** for metric validation
+* Support multi-turn conversations and multiple answers
 
-Uses lexical overlap, not semantic similarity
+---
 
-Does not handle paraphrases or synonyms
+## 👤 Author
 
-Best suited for lightweight or baseline evaluation
+**Nischal P R**
 
-Future Improvements
+---
 
-Replace word overlap with embedding-based similarity
+## 📄 License
 
-Add sentence-level semantic grounding
-
-Introduce configurable thresholds and weights
-
-Add unit tests for metric validation
-
-Author
-
-Nischal P R
+This project is intended for educational and experimental use. Add a license file if distributing publicly.
