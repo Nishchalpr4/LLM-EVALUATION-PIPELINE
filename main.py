@@ -1,6 +1,9 @@
 import json
 import time
 import re
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 # ==================== I/O ====================
@@ -13,9 +16,6 @@ def load_json(path):
 # ==================== NORMALIZATION ====================
 
 def normalize_text(text):
-    """
-    Lowercase, remove URLs and punctuation for robust matching
-    """
     text = text.lower()
     text = re.sub(r"http\S+", "", text)
     text = re.sub(r"[^a-z0-9\s]", " ", text)
@@ -26,51 +26,31 @@ def normalize_text(text):
 # ==================== EXTRACTION ====================
 
 def extract_context_texts(context_json):
-    """
-    Extract text chunks from vector DB response
-    """
     texts = []
-
-    if "data" in context_json and "vector_data" in context_json["data"]:
-        for item in context_json["data"]["vector_data"]:
-            if "text" in item and isinstance(item["text"], str):
-                texts.append(item["text"])
-
+    for item in context_json.get("data", {}).get("vector_data", []):
+        text = item.get("text")
+        if isinstance(text, str) and text.strip():
+            texts.append(text.strip())
     return texts
 
 
 def extract_ai_answer(conversation_json):
-    """
-    Extract the last AI/Chatbot message
-    """
-    turns = conversation_json.get("conversation_turns", [])
-
-    for turn in reversed(turns):
+    for turn in reversed(conversation_json.get("conversation_turns", [])):
         if turn.get("role") == "AI/Chatbot":
             return turn.get("message", "")
-
     return ""
 
 
 def extract_last_user_question(conversation_json):
-    """
-    Extract the last User message
-    """
-    turns = conversation_json.get("conversation_turns", [])
-
-    for turn in reversed(turns):
+    for turn in reversed(conversation_json.get("conversation_turns", [])):
         if turn.get("role") == "User":
             return turn.get("message", "")
-
     return ""
 
 
 # ==================== RELEVANCE ====================
 
 def filter_relevant_contexts(question, context_texts, min_overlap=2):
-    """
-    Filter context chunks using lexical overlap with user question
-    """
     if not question:
         return context_texts
 
@@ -86,9 +66,6 @@ def filter_relevant_contexts(question, context_texts, min_overlap=2):
 
 
 def relevance_score(answer, context_texts):
-    """
-    Word-overlap relevance score
-    """
     if not answer:
         return 0.0
 
@@ -97,7 +74,6 @@ def relevance_score(answer, context_texts):
         return 0.0
 
     max_overlap = 0
-
     for ctx in context_texts:
         ctx_words = set(normalize_text(ctx).split())
         overlap = len(answer_words & ctx_words)
@@ -106,64 +82,49 @@ def relevance_score(answer, context_texts):
     return max_overlap / len(answer_words)
 
 
-# ==================== HALLUCINATION ====================
+# ==================== HALLUCINATION (EMBEDDINGS) ====================
 
 def split_into_sentences(text):
-    """
-    Naive sentence splitter
-    """
     if not text:
         return []
-
-    sentences = text.split(".")
-    return [s.strip() for s in sentences if s.strip()]
-
-
-def is_claim_supported(claim, context_texts, min_overlap=1):
-    """
-    Check whether claim is supported by any context chunk
-    """
-    claim_words = set(normalize_text(claim).split())
-    if not claim_words:
-        return True
-
-    for ctx in context_texts:
-        ctx_words = set(normalize_text(ctx).split())
-        if len(claim_words & ctx_words) >= min_overlap:
-            return True
-
-    return False
+    sentences = text.replace("\n", " ").split(".")
+    return [s.strip() for s in sentences if len(s.strip().split()) >= 5]
 
 
-def detect_hallucinations(answer, context_texts):
-    """
-    Returns unsupported claims and hallucination score
-    """
-    sentences = split_into_sentences(answer)
-    unsupported = []
+class EmbeddingHallucinationDetector:
+    def __init__(self, model_name="all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
 
-    for sentence in sentences:
-        # ignore trivial fragments
-        if len(sentence.split()) < 5:
-            continue
+    def encode(self, texts):
+        return self.model.encode(texts, normalize_embeddings=True)
 
-        if not is_claim_supported(sentence, context_texts):
-            unsupported.append(sentence)
+    def detect(self, answer, context_texts, threshold=0.60):
+        claims = split_into_sentences(answer)
+        if not claims or not context_texts:
+            return [], 0.0
 
-    if not sentences:
-        score = 0.0
-    else:
-        score = len(unsupported) / len(sentences)
+        context_embeddings = self.encode(context_texts)
 
-    return unsupported, score
+        unsupported = []
+
+        for claim in claims:
+            claim_emb = self.encode([claim])
+            similarities = cosine_similarity(claim_emb, context_embeddings)[0]
+            max_sim = float(np.max(similarities))
+
+            if max_sim < threshold:
+                unsupported.append({
+                    "claim": claim,
+                    "max_similarity": round(max_sim, 3)
+                })
+
+        hallucination_score = len(unsupported) / len(claims)
+        return unsupported, round(hallucination_score, 3)
 
 
 # ==================== COMPLETENESS ====================
 
 def completeness_score(user_question, answer):
-    """
-    Measures how much of the user question is covered by the answer
-    """
     if not user_question or not answer:
         return 0.0
 
@@ -173,20 +134,16 @@ def completeness_score(user_question, answer):
     if not q_words:
         return 1.0
 
-    overlap = len(q_words & a_words)
-    return overlap / len(q_words)
+    return len(q_words & a_words) / len(q_words)
 
 
 # ==================== COST ====================
 
 def estimate_cost(answer, context_texts, cost_per_1k_tokens=0.001):
-    """
-    Rough cost estimate based on token count
-    """
-    total_text = normalize_text(answer) + " ".join(
+    combined_text = normalize_text(answer) + " ".join(
         normalize_text(ctx) for ctx in context_texts
     )
-    token_count = len(total_text.split())
+    token_count = len(combined_text.split())
     return (token_count / 1000) * cost_per_1k_tokens
 
 
@@ -198,43 +155,40 @@ def main():
     conversation = load_json("conversation.json")
     context_json = load_json("context.json")
 
-    # Extraction
     context_texts = extract_context_texts(context_json)
     ai_answer = extract_ai_answer(conversation)
     user_question = extract_last_user_question(conversation)
 
-    # Relevance
     filtered_contexts = filter_relevant_contexts(
         user_question, context_texts
     )
+
     relevance = relevance_score(ai_answer, filtered_contexts)
 
-    # Hallucination
-    unsupported_claims, hallucination_score = detect_hallucinations(
-        ai_answer, filtered_contexts
+    detector = EmbeddingHallucinationDetector()
+    unsupported_claims, hallucination_score = detector.detect(
+        ai_answer,
+        filtered_contexts,
+        threshold=0.60  # tune 0.55–0.70
     )
 
-    # Completeness
     completeness = completeness_score(user_question, ai_answer)
-
-    # Cost & Latency
     estimated_cost = estimate_cost(ai_answer, filtered_contexts)
     latency_ms = (time.time() - start_time) * 1000
 
-    # Output
-    print("AI Answer:")
+    print("\nAI Answer:\n")
     print(ai_answer)
 
     print("\nRelevance score:", round(relevance, 3))
 
     print("\nUnsupported claims:")
     if unsupported_claims:
-        for claim in unsupported_claims:
-            print("-", claim)
+        for u in unsupported_claims:
+            print(f"- {u['claim']} (sim={u['max_similarity']})")
     else:
         print("None")
 
-    print("\nHallucination score:", round(hallucination_score, 3))
+    print("\nHallucination score:", hallucination_score)
     print("Completeness score:", round(completeness, 3))
     print("Estimated evaluation cost ($):", round(estimated_cost, 6))
     print("Evaluation latency (ms):", round(latency_ms, 2))
