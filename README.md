@@ -88,7 +88,7 @@ Measures total evaluation runtime in **milliseconds**.
 Ensure Python 3 is installed, then execute:
 
 ```bash
-python evaluate.py
+python main.py
 ```
 
 ---
@@ -132,6 +132,4 @@ The script prints the following to the console:
 
 ---
 
-## 📄 License
 
-This project is intended for educational and experimental use. Add a license file if distributing publicly.
