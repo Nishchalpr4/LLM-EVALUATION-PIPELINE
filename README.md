@@ -128,7 +128,7 @@ The script prints the following to the console:
 
 ## 👤 Author
 
-**Nischal P R**
+**Nishchal P R**
 
 ---
 
